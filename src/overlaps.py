@@ -1,7 +1,6 @@
 import pyspark.sql.functions as F
 from pyspark.sql import SparkSession
 from pyspark.sql.window import Window
-import pyspark.ml.functions as Fml
 
 
 def findOverlappingSignals(spark: SparkSession, credSetPath: str):
@@ -64,8 +63,6 @@ def findOverlappingSignals(spark: SparkSession, credSetPath: str):
             how="inner",
         )
         .drop("left.tag_variant_id", "right.tag_variant_id")
-        # Keep only one record per overlapping peak
-        .dropDuplicates(*["left." + i for i in idCols] + ["right." + i for i in idCols])
         # Rename columns to make them unambiguous
         .selectExpr(
             *["left." + col + " as " + "left_" + col for col in colsToRename]
@@ -79,25 +76,21 @@ def findOverlappingSignals(spark: SparkSession, credSetPath: str):
     overlappingPeaksWithArrays = (
         overlappingPeaks.withColumn(
             "left_logABF",
-            Fml.array_to_vector(
-                F.map_values(
-                    F.map_zip_with(
-                        "left_all_tags",
-                        "right_all_tags",
-                        lambda k, v1, v2: F.coalesce(v1, F.lit(0.0)),
-                    )
+            F.map_values(
+                F.map_zip_with(
+                    "left_all_tags",
+                    "right_all_tags",
+                    lambda k, v1, v2: F.coalesce(v1, F.lit(0.0)),
                 )
             ),
         )
         .withColumn(
             "right_logABF",
-            Fml.array_to_vector(
-                F.map_values(
-                    F.map_zip_with(
-                        "left_all_tags",
-                        "right_all_tags",
-                        lambda k, v1, v2: F.coalesce(v2, F.lit(0.0)),
-                    )
+            F.map_values(
+                F.map_zip_with(
+                    "left_all_tags",
+                    "right_all_tags",
+                    lambda k, v1, v2: F.coalesce(v2, F.lit(0.0)),
                 )
             ),
         )
